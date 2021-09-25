@@ -10,6 +10,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 
@@ -243,6 +244,7 @@ int main(int argc, char *argv[]){
 	struct stat statbuf;
 	struct passwd *pwd;
 	char stat_path[MAXLEN];
+	int a = 0;
 
 	for(int i=0; i<count; i++){
 
@@ -298,8 +300,11 @@ int main(int argc, char *argv[]){
 		long long int uptime=getUptime();//시스템 부팅후 현재 시각까지의 부팅시간(초)
 		//%CPU 계산
 		long long int totalTime=atoll(stoken[13])+atoll(stoken[14]);
-		double totalTime_tic = (double)totalTime/sysconf(_SC_CLK_TCK);
-		proc_struct[i].CPU = (double)totalTime_tic/uptime*100;
+		unsigned long startTime = (unsigned long)atoi(stoken[21]);
+		int hertz = (int)sysconf(_SC_CLK_TCK);
+		double totalTime_tic = (double)totalTime/hertz;
+		proc_struct[i].CPU = (double)totalTime_tic/(long double)(uptime-(startTime/hertz))*100;
+		if(uptime-(startTime/hertz)==0) proc_struct[i].CPU = 0.0;
 
 		//memTotal 정보 가져오기
 		long long int memTotal = getMemTotal();
@@ -373,33 +378,110 @@ int main(int argc, char *argv[]){
 		lt = localtime(&start_time);
 		sprintf(proc_struct[i].START,"%02d:%02d", lt->tm_hour, lt->tm_min);
 
-		//TTY 구하기
-		memset(proc_struct[i].TTY, '\0', MAXLEN);
-		int tty_nr = atoi(stoken[6]);
-		if(tty_nr==0){
-			strcpy(proc_struct[i].TTY, "?"); 
-		}
-		else{
-			int maj = major(tty_nr);
-			int min = minor(tty_nr);
-			char link_tmp[MAXLEN];
-			memset(link_tmp,'\0', MAXLEN);
-			sprintf(link_tmp, "/dev/char/%d:   -%d", maj, min);
-			//printf("%d %s\n",proc_struct[i].PID, link_tmp);
+//		//TTY 구하기
+//		memset(proc_struct[i].TTY, '\0', MAXLEN);
+//		int tty_nr = atoi(stoken[6]);
+//		if(tty_nr==0){
+//			strcpy(proc_struct[i].TTY, "?"); 
+//		}
+//		else{
+//			int maj = major(tty_nr);
+//			int min = minor(tty_nr);
+//			char link_tmp[MAXLEN];
+//			memset(link_tmp,'\0', MAXLEN);
+//			sprintf(link_tmp, "/dev/char/%d:   -%d", maj, min);
+//			//printf("%d %s\n",proc_struct[i].PID, link_tmp);
+//
+//			char link_info[MAXLEN];
+//			memset(link_info, '\0', MAXLEN);
+//
+//			if(access(link_tmp,F_OK)!=0) {
+//				sprintf(proc_struct[i].TTY, "pts/%d", min);
+//				//printf("%s\n", proc_struct[i].TTY);
+//			}
+//			else{
+//				readlink(link_tmp, link_info, MAXLEN);
+//				strcpy(proc_struct[i].TTY, link_info+3);
+//				printf("%s\n", proc_struct[i].TTY);
+//			}
+//
+//			//printf("%d %d\n", maj, min);
+//		}
+//
+		//TTY구하기
+		char path[1024];
+		char sss[10];
+		memset(path, '\0', 10);
+		memset(path, '\0', 1024);
+		strcpy(path, "/proc");
+		strcat(path, "/");
+		sprintf(sss, "%d", proc_struct[i].PID);
+		strcat(path, sss);
 
-			char link_info[MAXLEN];
-			memset(link_info, '\0', MAXLEN);
+			char fdZeroPath[1024];
+			char tty[32];
+			memset(tty, '\0', 32);
+			memset(fdZeroPath, '\0', 1024);
+			strcpy(fdZeroPath, path);
+			strcat(fdZeroPath, "/fd/0");
 
-			if(access(link_tmp,F_OK)!=0) {
-				sprintf(proc_struct[i].TTY, "pts/%d", min);
+			if(access(fdZeroPath, F_OK)<0){
+				int ttynr = atoi(stoken[6]);
+				if(ttynr == 0) strcpy(proc_struct[i].TTY,"?");
+				else{
+				DIR *dp;
+				struct dirent *dentry;
+				if((dp = opendir("/dev")) == NULL){
+					fprintf(stderr, "opendir error for /dev\n");
+					exit(1);
+				}
+				char nowPath[32];
+
+				while((dentry = readdir(dp)) != NULL){
+				memset(nowPath, '\0', 32);
+				strcpy(nowPath, "/dev");
+				strcat(nowPath, "/");
+				//char tname[32] = dentry->d_name;
+				//printf("%s\n", tname);
+				strcat(nowPath, dentry->d_name);
+				//printf("%s\n", dentry->d_name);
+
+				struct stat statbuf;
+				if(stat(nowPath, &statbuf) < 0){
+					fprintf(stderr, "stat error for %s\n", nowPath);
+					exit(1);
+				}
+			
+				if(!S_ISCHR(statbuf.st_mode))
+					continue;
+				else if(statbuf.st_rdev == ttynr){
+					strcpy(proc_struct[i].TTY, dentry->d_name);
+					//if(strcmp(dentry->d_name, "stdin")==0)
+					//	strcpy(proc_struct[i].TTY, "pts/0");
+				}
+				}
+				closedir(dp);
+				}
+			
+				if(!strlen(proc_struct[i].TTY))
+					strcpy(proc_struct[i].TTY, "?");
 			}
 			else{
-				readlink(link_tmp, link_info, MAXLEN);
-				strcpy(proc_struct[i].TTY, link_info+3);
-			}
+				char symLinkName[128];
+				memset(symLinkName, '\0', 128);
+				if(readlink(fdZeroPath, symLinkName, 128)<0){
+					fprintf(stderr, "readlink error for %s\n", fdZeroPath);
+					exit(1);
+				}
+				if(!strcmp(symLinkName, "/dev/null"))
+					strcpy(proc_struct[i].TTY, "?");
+				else{
+					sscanf(symLinkName, "/dev/%s", proc_struct[i].TTY);
+				}
+			}	
 
-			//printf("%d %d\n", maj, min);
-		}
+			
+		
 
 		//STAT구하기
 		memset(proc_struct[i].STAT, '\0', MAXLEN);
@@ -470,11 +552,11 @@ int main(int argc, char *argv[]){
 	
 	int p=1;
 	if(checkoption[0]==1){
-		snprintf(print[0],w_col,"%-10s%5s%5s%5s%8s%7s %-9s%-5s%7s%7s %-8s", "USER", "PID", "%CPU", "%MEM" ,"VSZ", "RSS","TTY","STAT", "START", "TIME", "COMMAND");
+		snprintf(print[0],w_col,"%-10s%5s%5s%5s %7s %6s %-8s%-5s%6s %5s %-8s", "USER", "PID", "%CPU", "%MEM" ,"VSZ", "RSS","TTY","STAT", "START", "TIME", "COMMAND");
 		if(checkoption[1]==1){ 
 			if(checkoption[2]==1){//aux 모든것을 출력
 				for(int i=0; i<count; i++){
-					snprintf(print[p++],w_col,"%-10s%5d%5.1lf%5.1lf%8lld%7lld %-9s%-5s%7s%7s %-8s", 
+					snprintf(print[p++],w_col,"%-10s%5d%5.1lf%5.1lf %7lld %6lld %-8s%-5s%6s %5s %-8s", 
 						proc_struct[i].USER, 
 						proc_struct[i].PID, 
 						proc_struct[i].CPU, 
