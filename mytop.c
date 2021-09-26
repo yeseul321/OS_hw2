@@ -713,8 +713,7 @@ void save_data(){
 
 		//TIME 구하기
 		//int hertz = (int)sysconf(_SC_CLK_TCK);
-		long long int ticTime = atoll(stoken[13]) + (atoll(stoken[14]));
-		printf("%lld ",ticTime); 
+		long long int ticTime = atoll(stoken[13]) + (atoll(stoken[14])); 
 		long long int minTime= ticTime/10000;
 		long long int secTime= ticTime/100;
 		ticTime = ticTime-(minTime*10000 + secTime*100);
