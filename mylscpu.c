@@ -7,6 +7,16 @@
 
 #define MAXLEN 1024
 
+#define ITLB_MULTI_PATH "/sys/devices/system/cpu/vulnerabilities/itlb_multihit"
+#define L1TF_PATH "/sys/devices/system/cpu/vulnerabilities/l1tf"
+#define MDS_PATH "/sys/devices/system/cpu/vulnerabilities/mds"
+#define MELTDOWN_PATH "/sys/devices/system/cpu/vulnerabilities/meltdown"
+#define SPEC_STORE_PATH "/sys/devices/system/cpu/vulnerabilities/spec_store_bypass"
+#define SPECTRE_V1_PATH "/sys/devices/system/cpu/vulnerabilities/spectre_v1"
+#define SPECTRE_V2_PATH "/sys/devices/system/cpu/vulnerabilities/spectre_v2"
+#define SRBDS_PATH "/sys/devices/system/cpu/vulnerabilities/srbds"
+#define TSX_ASYNC_PATH "/sys/devices/system/cpu/vulnerabilities/tsx_async_abort"
+
 typedef struct mycpu{
 	//필수
 	char Vendor_ID[100];
@@ -21,6 +31,15 @@ typedef struct mycpu{
 	char model[100];
 	char stepping[10];
 	char bogoMIPS[100];
+	char itlb[MAXLEN];
+	char l1tf[MAXLEN];
+	char mds_path[MAXLEN];
+	char meltdown[MAXLEN];
+	char store_path[MAXLEN];
+	char v1_path[MAXLEN];
+	char v2_path[MAXLEN];
+	char srbds_path[MAXLEN];
+	char async_path[MAXLEN];
 	char flags[MAXLEN];
 }mycpu;
 
@@ -32,6 +51,7 @@ void getCPUinfo();
 void getcacheinfo();
 char *getString(char *str, int len);
 void getArch();
+void getVelner();
 
 int main(void){
 	getCPUinfo();
@@ -49,10 +69,115 @@ int main(void){
 	printf("%-33s%s\n", "L1d cache:", cpu_struct.cache_size[0]);
 	printf("%-33s%s\n", "L1i cache:", cpu_struct.cache_size[1]);
 	printf("%-33s%s\n", "L2 cache:", cpu_struct.cache_size[2]);
+	printf("%-33s%s", "Vulnerability Itlb multihit:", cpu_struct.itlb);
+	printf("%-33s%s", "Vulnerability L1tf:", cpu_struct.l1tf);
+	printf("%-33s%s", "Vulnerability Mds:", cpu_struct.mds_path);
+	printf("%-33s%s", "Vulnerability Meltdown:", cpu_struct.meltdown);
+	printf("%-33s%s", "Vulnerability Spec store bypass:", cpu_struct.store_path);
+	printf("%-33s%s", "Vulnerability Spectre v1:", cpu_struct.v1_path);
+	printf("%-33s%s", "Vulnerability Spectre v2:", cpu_struct.v2_path);
+	printf("%-33s%s", "Vulnerability Srbds:", cpu_struct.srbds_path);
+	printf("%-33s%s", "Vulnerability Tsx async abort:", cpu_struct.async_path);
 	printf("%-32s%s\n", "flags:", cpu_struct.flags);
 
 	return 0;
 }
+void getVulner(void){
+	FILE *fp;
+	char str[MAXLEN];
+	//itlb multi path
+	if((fp = fopen(ITLB_MULTI_PATH, "r")) == NULL){
+                fprintf(stderr, "path1 open error\n");
+                exit(1);
+        }
+	memset(str, '\0', MAXLEN);
+	fgets(str, MAXLEN, fp);
+	strcpy(cpu_struct.itlb, str);
+	fclose(fp);
+
+	//l1tf path
+	if((fp = fopen(L1TF_PATH, "r")) == NULL){
+                fprintf(stderr, "path2 open error\n");
+                exit(1);
+        }
+	memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.l1tf, str);
+        fclose(fp);
+
+	//mds path
+	if((fp = fopen(MDS_PATH, "r")) == NULL){
+                fprintf(stderr, "path3 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.mds_path, str);
+        fclose(fp);
+
+	//meltdown path
+	if((fp = fopen(MELTDOWN_PATH, "r")) == NULL){
+                fprintf(stderr, "path4 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.meltdown, str);
+        fclose(fp);
+
+	//spec store path
+	if((fp = fopen(SPEC_STORE_PATH, "r")) == NULL){
+                fprintf(stderr, "path5 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.store_path, str);
+        fclose(fp);
+
+	//spectre v1 path
+	if((fp = fopen(SPECTRE_V1_PATH, "r")) == NULL){
+                fprintf(stderr, "path6 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.v1_path, str);
+        fclose(fp);
+
+	//spectre v2 path
+	if((fp = fopen(SPECTRE_V2_PATH, "r")) == NULL){
+                fprintf(stderr, "path7 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.v2_path, str);
+        fclose(fp);
+
+	//sebds path
+	if((fp = fopen(SRBDS_PATH, "r")) == NULL){
+                fprintf(stderr, "path8 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.srbds_path, str);
+        fclose(fp);
+
+	//tsx async path
+	if((fp = fopen(TSX_ASYNC_PATH, "r")) == NULL){
+                fprintf(stderr, "path9 open error\n");
+                exit(1);
+        }
+        memset(str, '\0', MAXLEN);
+        fgets(str, MAXLEN, fp);
+        strcpy(cpu_struct.async_path, str);
+        fclose(fp);
+
+
+}
+
 void getArch(void){
 	DIR *dp;
 	struct dirent *dentry;
@@ -174,6 +299,7 @@ void getCPUinfo(){
 	/******************OPTION*********************/
 
 	getArch();
+	getVulner();
 
 	address_sizes = getString("address sizes", 13);
 	strcpy(cpu_struct.address_sizes, address_sizes);
