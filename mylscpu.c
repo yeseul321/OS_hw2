@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <dirent.h>
 
 #define MAXLEN 1024
 
@@ -13,6 +14,7 @@ typedef struct mycpu{
 	char CPU_MHz[100];
 	char cache_size[3][100];
 	//옵션
+	char Architecture[10];
 	char address_sizes[MAXLEN];
 	char CPUs[10];
 	char CPU_family[100];
@@ -29,10 +31,12 @@ FILE *cpu_fp;
 void getCPUinfo();
 void getcacheinfo();
 char *getString(char *str, int len);
+void getArch();
 
 int main(void){
 	getCPUinfo();
 	
+	printf("%-33s%s\n", "Architecture:", cpu_struct.Architecture);
 	printf("%-32s%s\n", "Address sizes:", cpu_struct.address_sizes);
 	printf("%-32s%s\n", "CPU(s):", cpu_struct.CPUs);
 	printf("%-32s%s\n", "Vendor ID:", cpu_struct.Vendor_ID);
@@ -49,6 +53,30 @@ int main(void){
 
 	return 0;
 }
+void getArch(void){
+	DIR *dp;
+	struct dirent *dentry;
+	char dir[100];
+	char *archi;
+	if((dp = opendir("/lib")) == NULL){
+		fprintf(stderr, "opendir error for %s\n", "/lib");
+		exit(1);
+	}
+	while((dentry = readdir(dp)) != NULL){
+		//printf("%s\n", dentry->d_name);
+		if(strstr(dentry->d_name, "linux-gnu")!=NULL){
+			strcpy(dir, dentry->d_name);
+			archi = strtok(dir, "-");
+			strcpy(cpu_struct.Architecture, archi);
+			break;
+		}
+		else{
+			continue;
+		}
+	}
+	return;
+}
+
 char * getString(char *str, int len){
 	char line_info[MAXLEN];
 	char *ret_str = NULL;
@@ -131,7 +159,7 @@ void getcacheinfo(){
 
 void getCPUinfo(){
 	char *vendor_id, *model_name, *cpu_mhz;
-	char *address_sizes, *cpus, *cpu_family, *model, *stepping, *bogomips, *flags;
+	char *arch, *address_sizes, *cpus, *cpu_family, *model, *stepping, *bogomips, *flags;
 
 	/****************ESSENTIAL*****************/
 	vendor_id = getString("vendor_id", 9);
@@ -144,6 +172,9 @@ void getCPUinfo(){
 	strcpy(cpu_struct.CPU_MHz, cpu_mhz);
 
 	/******************OPTION*********************/
+
+	getArch();
+
 	address_sizes = getString("address sizes", 13);
 	strcpy(cpu_struct.address_sizes, address_sizes);
 
