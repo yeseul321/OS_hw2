@@ -188,7 +188,6 @@ void getArch(void){
 		exit(1);
 	}
 	while((dentry = readdir(dp)) != NULL){
-		//printf("%s\n", dentry->d_name);
 		if(strstr(dentry->d_name, "linux-gnu")!=NULL){
 			strcpy(dir, dentry->d_name);
 			archi = strtok(dir, "-");
@@ -296,10 +295,11 @@ void getCPUinfo(){
 	cpu_mhz = getString("cpu MHz", 7);
 	strcpy(cpu_struct.CPU_MHz, cpu_mhz);
 
+	getcacheinfo();
+
 	/******************OPTION*********************/
 
 	getArch();
-	getVulner();
 
 	address_sizes = getString("address sizes", 13);
 	strcpy(cpu_struct.address_sizes, address_sizes);
@@ -319,8 +319,8 @@ void getCPUinfo(){
 	bogomips = getString("bogomips", 8);
 	strcpy(cpu_struct.bogoMIPS, bogomips);
 
+	getVulner();
+
 	flags = getString("flags", 5);
 	strcpy(cpu_struct.flags, flags);
-
-	getcacheinfo();
 }

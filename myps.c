@@ -19,7 +19,7 @@
 char proc_path[MAXLEN];
 char checkoption[4];
 
-//파일 디렉토리 명에서 필요 없는 파일을 걸러주는 함수
+//파일 디렉토리 명에서 숫자가 아닌 파일을 걸러주는 필터함수
 static int filter(const struct dirent *dirent){
 	if(isdigit(dirent->d_name[0])!=0) return 1;
 	else return 0;
@@ -64,11 +64,11 @@ long long int getUptime(void){
 	}
 
 	long long int uptime=atoll(uptime_tmp);//시스템 부팅후 현재 시각까지의 부팅시간(초)
-	//printf("%lld", uptime);
 
 	return uptime;
 }
 
+// /proc/meminfo에서 Memtotal 값을 가져오는 함수 
 long long getMemTotal(){
 	int meminfo_fd;
 	long long int memTotal;
@@ -94,6 +94,7 @@ long long getMemTotal(){
 	return memTotal;
 }
 
+// /proc/[pid]/status에서 Rss 값을 가져오는 함수 
 long long getRss(int pid){
 	char status_path[MAXLEN];
 	memset(status_path, '\0', MAXLEN);
@@ -117,7 +118,6 @@ long long getRss(int pid){
 	}
 	if(check==1){//VmRSS가 존재함
 		fclose(status_fp);
-		//printf("%s\n", line_tmp);
 		for(int i=0; i<strlen(line_tmp); i++){
 			if(isdigit(line_tmp[i])) return atoll(&line_tmp[i]);
 		}
@@ -126,6 +126,7 @@ long long getRss(int pid){
 
 }
 
+// /proc/[pid]/status에서 VmSize 값을 가져오는 함수 
 long long getVsz(int pid){
 	char status_path[MAXLEN];
 	memset(status_path,'\0', MAXLEN);
@@ -149,7 +150,6 @@ long long getVsz(int pid){
 	}
 	if(check==1){//VmSize가 존재함
 		fclose(status_fp);
-		//printf("%s\n", line_tmp);
 		for(int i=0; i<strlen(line_tmp); i++){
 			if(isdigit(line_tmp[i])) return atoll(&line_tmp[i]);
 		}
@@ -158,6 +158,7 @@ long long getVsz(int pid){
 
 }
 
+// /proc/[pid]/status에서 VmLck 값을 가져오는 함수 
 long long int getVmLck(int pid){
 	char status_path[MAXLEN];
 	memset(status_path,'\0', MAXLEN);
@@ -181,7 +182,6 @@ long long int getVmLck(int pid){
 	}
 	if(check==1){//VmLck가 존재함
 		fclose(status_fp);
-		//printf("%s\n", line_tmp);
 		for(int i=0; i<strlen(line_tmp); i++){
 			if(isdigit(line_tmp[i])) return atoll(&line_tmp[i]);
 		}
@@ -236,10 +236,6 @@ int main(int argc, char *argv[]){
 			else continue;
 		}
 	}
-	/*
-	for(int i=0; i<count; i++){
-		printf("%d\n", proc_struct[i].PID);
-	}*/
 
 	struct stat statbuf;
 	struct passwd *pwd;
@@ -251,7 +247,7 @@ int main(int argc, char *argv[]){
 		memset(stat_path, '\0', sizeof(stat_path));
 		sprintf(stat_path, "%s/%d", proc_path, proc_struct[i].PID);
 
-		if(stat(stat_path, &statbuf)==-1){//pid로 puid가져오기
+		if(stat(stat_path, &statbuf)==-1){//pid로 uid가져오기
 			fprintf(stderr, "%d stat error\n", proc_struct[i].PID);
 			exit(1);
 		}
@@ -298,17 +294,20 @@ int main(int argc, char *argv[]){
 
 		//uptime 정보 가져오기
 		long long int uptime=getUptime();//시스템 부팅후 현재 시각까지의 부팅시간(초)
+
 		//%CPU 계산
 		long long int totalTime=atoll(stoken[13])+atoll(stoken[14]);
 		unsigned long startTime = (unsigned long)atoi(stoken[21]);
 		int hertz = (int)sysconf(_SC_CLK_TCK);
 		double totalTime_tic = (double)totalTime/hertz;
 		proc_struct[i].CPU = (double)totalTime_tic/(long double)(uptime-(startTime/hertz))*100;
-		if(uptime-(startTime/hertz)==0) proc_struct[i].CPU = 0.0;
+		if(uptime-(startTime/hertz)==0) 
+			proc_struct[i].CPU = 0.0;
 
 		//memTotal 정보 가져오기
 		long long int memTotal = getMemTotal();
 		long long int rss=getRss(proc_struct[i].PID);
+
 		//%MEM 계산
 		proc_struct[i].MEM=(double)rss/memTotal*100;
 
@@ -342,7 +341,7 @@ int main(int argc, char *argv[]){
 			sprintf(comm_path, "/proc/%d/comm", proc_struct[i].PID);
 			FILE * comm_fp = fopen(comm_path, "r");
 			if(NULL==fgets(command, MAXLEN, comm_fp)){
-				fprintf(stderr, "엥 경로가 없는딩\n");
+				fprintf(stderr, "error open file for comm\n");
 				exit(1);
 			}
 			else{
@@ -372,42 +371,11 @@ int main(int argc, char *argv[]){
 		struct tm *lt;
 
 		fulltime = time(NULL);
-		//printf("%ld\n", fulltime);
 		time_t start_time =  fulltime-uptime+(atoi(stoken[21])/sysconf(_SC_CLK_TCK));
 		memset(proc_struct[i].START, '\0', sizeof(proc_struct[i].START));
 		lt = localtime(&start_time);
 		sprintf(proc_struct[i].START,"%02d:%02d", lt->tm_hour, lt->tm_min);
 
-//		//TTY 구하기
-//		memset(proc_struct[i].TTY, '\0', MAXLEN);
-//		int tty_nr = atoi(stoken[6]);
-//		if(tty_nr==0){
-//			strcpy(proc_struct[i].TTY, "?"); 
-//		}
-//		else{
-//			int maj = major(tty_nr);
-//			int min = minor(tty_nr);
-//			char link_tmp[MAXLEN];
-//			memset(link_tmp,'\0', MAXLEN);
-//			sprintf(link_tmp, "/dev/char/%d:   -%d", maj, min);
-//			//printf("%d %s\n",proc_struct[i].PID, link_tmp);
-//
-//			char link_info[MAXLEN];
-//			memset(link_info, '\0', MAXLEN);
-//
-//			if(access(link_tmp,F_OK)!=0) {
-//				sprintf(proc_struct[i].TTY, "pts/%d", min);
-//				//printf("%s\n", proc_struct[i].TTY);
-//			}
-//			else{
-//				readlink(link_tmp, link_info, MAXLEN);
-//				strcpy(proc_struct[i].TTY, link_info+3);
-//				printf("%s\n", proc_struct[i].TTY);
-//			}
-//
-//			//printf("%d %d\n", maj, min);
-//		}
-//
 		//TTY구하기
 		char path[1024];
 		char sss[10];
@@ -441,10 +409,7 @@ int main(int argc, char *argv[]){
 				memset(nowPath, '\0', 32);
 				strcpy(nowPath, "/dev");
 				strcat(nowPath, "/");
-				//char tname[32] = dentry->d_name;
-				//printf("%s\n", tname);
 				strcat(nowPath, dentry->d_name);
-				//printf("%s\n", dentry->d_name);
 
 				struct stat statbuf;
 				if(stat(nowPath, &statbuf) < 0){
@@ -456,8 +421,6 @@ int main(int argc, char *argv[]){
 					continue;
 				else if(statbuf.st_rdev == ttynr){
 					strcpy(proc_struct[i].TTY, dentry->d_name);
-					//if(strcmp(dentry->d_name, "stdin")==0)
-					//	strcpy(proc_struct[i].TTY, "pts/0");
 				}
 				}
 				closedir(dp);
@@ -554,7 +517,7 @@ int main(int argc, char *argv[]){
 	if(checkoption[0]==1){
 		snprintf(print[0],w_col,"%-10s%5s%5s%5s %7s %6s %-8s%-5s%6s %5s %-8s", "USER", "PID", "%CPU", "%MEM" ,"VSZ", "RSS","TTY","STAT", "START", "TIME", "COMMAND");
 		if(checkoption[1]==1){ 
-			if(checkoption[2]==1){//aux 모든것을 출력
+			if(checkoption[2]==1){//Option 'aux'
 				for(int i=0; i<count; i++){
 					snprintf(print[p++],w_col,"%-10s%5d%5.1lf%5.1lf %7lld %6lld %-8s%-5s%6s %5s %-8s", 
 						proc_struct[i].USER, 
@@ -570,7 +533,7 @@ int main(int argc, char *argv[]){
 						proc_struct[i].COMMAND);
 				}
 			}
-			else{//au :형식모두 출력인데 tty가 ? 가 아닌거
+			else{// Option 'au'
 				for(int i=0; i<count; i++){
 					if(strcmp(proc_struct[i].TTY, "?")!=0){
 						snprintf(print[p++],w_col,"%-10s%5d%5.1lf%5.1lf%8lld%7lld %-9s%-5s%7s%7s %-8s", 
@@ -590,7 +553,7 @@ int main(int argc, char *argv[]){
 			}
 		}
 		else{
-			if(checkoption[2]==1){//ux : 형식 모두 출력인데 user 인거
+			if(checkoption[2]==1){// Option 'ux'
  				for(int i=0; i<count; i++){
 					if(strcmp(proc_struct[i].USER, pwd->pw_name)==0){
 						snprintf(print[p++],w_col,"%-10s%5d%5.1lf%5.1lf%8lld%7lld %-9s%-5s%7s%7s %-8s", 
@@ -608,7 +571,7 @@ int main(int argc, char *argv[]){
 					}
 				}
 			}
-			else{//u 
+			else{//Option 'u
 				for(int i=0; i<count; i++){
 					if(strcmp(proc_struct[i].USER, pwd->pw_name)==0){
 						if(strcmp(proc_struct[i].TTY, "?")!=0){
@@ -633,7 +596,7 @@ int main(int argc, char *argv[]){
 	else{
 		snprintf(print[0],w_col,"%5s %-9s%-5s%7s %-8s","PID", "TTY","STAT", "TIME", "COMMAND");
 		if(checkoption[1]==1){
-			if(checkoption[2]==1){//ax
+			if(checkoption[2]==1){// Option 'ax'
 				for(int i=0; i<count; i++){
 						snprintf(print[p++],w_col,"%5d %-9s%-5s%7s %-8s",  
 							proc_struct[i].PID, 
@@ -643,7 +606,7 @@ int main(int argc, char *argv[]){
 							proc_struct[i].COMMAND);
 				}
 			}
-			else{//a
+			else{//Option'a
 					for(int i=0; i<count; i++){
 						if(strcmp(proc_struct[i].TTY, "?")!=0){
 							snprintf(print[p++],w_col,"%5d %-9s%-5s%7s %-8s",  
@@ -657,7 +620,7 @@ int main(int argc, char *argv[]){
 			}
 		}
 		else{
-			if(checkoption[2]==1){//x
+			if(checkoption[2]==1){// Option 'x
 				for(int i=0; i<count; i++){
 					if(strcmp(proc_struct[i].USER, pwd->pw_name)==0){
 						snprintf(print[p++],w_col,"%5d %-9s%-5s%7s %-8s",  
@@ -669,7 +632,7 @@ int main(int argc, char *argv[]){
 					}
 				}
 			}
-			else{//옵션 없을 때
+			else{//NO Option
 				memset(print[0], 0, sizeof(print[0]));
 				snprintf(print[0],w_col,"%5s %-9s%9s %-8s","PID", "TTY","TIME", "COMMAND");
 				char *ret, tty[MAXLEN];
@@ -715,8 +678,3 @@ int main(int argc, char *argv[]){
 	for(int i=0; i<p; i++){	
 		printf("%s\n", print[i]);	
 	}
-/*
-   for(int i=0; i<count; i++){
-   printf("%s\n", proc_struct[i].USER);
-   }*/
-}

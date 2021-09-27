@@ -21,14 +21,14 @@
 int start_line;
 int w_row, w_col;
 typedef struct Proc{
-	int PID;
+	int PID; //프로세스 ID
 	char USER[MAXLEN]; //user 이름
 	char PR[3]; //우선순위
 	int NI; //nice 값
 	long long int VIRT; //가상 메모리 사용량
 	long long RES; //실제 메모리 사용량
 	long long SHR; //공유 메모리 사용량
-	char S; //stat
+	char S; //프로세스 상태(state)
 	double CPU; //CPU 사용률
 	double MEM; //메모리 사용률
 	char TIME[8]; //총 cpu 사용시간
@@ -37,6 +37,7 @@ typedef struct Proc{
 
 //구조체 배열 생성
 Proc proc_struct[MAXLEN];
+
 char proc_path[MAXLEN];
 char head[5][MAXLEN];
 int proc_count, run, slep, stop, zom;
@@ -45,31 +46,31 @@ long long int uptime;
 int ccpu[9];
 int bcpu[9];
 
-void sigint_handler(int signo);
+void sigint_handler(int signo); //3초에 한번씩 업데이트를 위한 ALARM시그널 핸들러
 void ttop_print();
 void save_data();
 int ggetch();
 
-int ggetch(void){ 
+int ggetch(void){  //getch() 함수를 대체한 함수구현
    int ch;
    struct termios oldt, newt;
    tcgetattr(0,&oldt);
    newt = oldt;
    newt.c_lflag &= ~ICANON;
    newt.c_lflag &= ~ECHO;
-   //newt.c_lflag &= ~(ICANON|ECHO);
    tcsetattr(0, TCSAFLUSH, &newt);
    ch = getchar();
    tcsetattr(0, TCSAFLUSH, &oldt);
    return ch;
 }
 
-//파일 디렉토리 명에서 필요 없는 파일을 걸러주는 함수
+//파일 디렉토리 명에서 숫자가 아닌 파일을 걸러주는 함수
 static int s_filter(const struct dirent *dirent){
 	if(isdigit(dirent->d_name[0])!=0) return 1;
 	else return 0;
 }
 
+// /proc/meminfo 에서 memtotal 값을 가져오는 함수
 long long getMemTotal(){
 	int meminfo_fd;   
 	long long int memTotal;
@@ -96,6 +97,7 @@ long long getMemTotal(){
 	return memTotal;
 }
 
+// /proc/meminfo 에서 memfree 값을 가져오는 함수
 long long getMemFree(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -126,6 +128,7 @@ long long getMemFree(){
 	else {fclose(meminfo_fp); close(meminfo_fd); return 0;}
 }
 
+// /proc/meminfo 에서 buffers 값을 가져오는 함수
 long long getBuffer(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -156,6 +159,7 @@ long long getBuffer(){
 	else {fclose(meminfo_fp); close(meminfo_fd); return 0;}
 }
 
+// /proc/meminfo 에서 cached 값을 가져오는 함수
 long long getCache(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -186,6 +190,7 @@ long long getCache(){
 	else {fclose(meminfo_fp); close(meminfo_fd); return 0;}
 }
 
+// /proc/meminfo 에서 SReclaimable 값을 가져오는 함수
 long long getSR(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -216,6 +221,7 @@ long long getSR(){
 	else {fclose(meminfo_fp); close(meminfo_fd); return 0;}
 }
 
+// /proc/meminfo 에서 swaptotal 값을 가져오는 함수
 long long getSwapTotal(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -246,6 +252,7 @@ long long getSwapTotal(){
 	else return 0;
 }
 
+// /proc/meminfo 에서 swapfree 값을 가져오는 함수
 long long getSwapFree(){
 	int meminfo_fd;   
 	long long int memFree;
@@ -276,6 +283,7 @@ long long getSwapFree(){
 	else return 0;
 }
 
+// /proc/meminfo 에서 memavailable 값을 가져오는 함수
 long long getMemAvail(){
 	int meminfo_fd;     
 	long long int memFree;
@@ -306,6 +314,7 @@ long long getMemAvail(){
 	else return 0;
 }
 
+// /proc/[pid]/status 에서 VmRSS값을 가져오는 함수
 long long getRss(int pid){
 	char status_path[MAXLEN];
 	memset(status_path, '\0', MAXLEN);
@@ -336,7 +345,7 @@ long long getRss(int pid){
 	}
 	else {fclose(status_fp);return 0;}
 }
-//uptime 정보 가져오기
+// /proc/uptime에서 uptime 정보 가져오기
 long long int getUptime(void){
 
 	int uptime_fd;
@@ -366,6 +375,7 @@ long long int getUptime(void){
 	return uptime;
 }
 
+// /proc/[pid]/status 에서 VmSize값을 가져오는 함수
 long long getVmSize(int pid){
 	char status_path[MAXLEN];
 	memset(status_path,'\0', MAXLEN);
@@ -398,6 +408,7 @@ long long getVmSize(int pid){
 
 }
 
+// /proc/[pid]/status 에서 RssFile값을 가져오는 함수
 long long getRssShmem(int pid){
 	char status_path[MAXLEN];
 	memset(status_path,'\0', MAXLEN);
@@ -432,6 +443,7 @@ long long getRssShmem(int pid){
 
 }
 
+//utmp구조체를 통해 user수를 구하는 함수
 int getUser(){
 	int user=0;
 	struct utmp *uutmp;
@@ -443,6 +455,7 @@ int getUser(){
 	return user;
 }
 
+//3초마다 alarm시그널을 보내고 그 시그널이 오면 데이터 갱신해서 화면해 출력하도록 하는 핸들러 함수
 void sigint_handler(int signo){
 	write(1,"\33[3J\33[H\33[2J", 11);
 	
@@ -452,6 +465,7 @@ void sigint_handler(int signo){
 	alarm(3);
 }
 
+//헤더에 포함되는 정보들을 수집하고 각 구조체 값에 저장하는 함수
 void makehead(){
 
 	time_t t;
@@ -464,6 +478,7 @@ void makehead(){
 	int up_h = uptime/3600;
 	int up_m = (uptime - up_h*3600)/60;
 
+	//load average 획득
 	FILE * loadavg_fp;
 
 	if((loadavg_fp = fopen("/proc/loadavg", "r"))==NULL){
@@ -475,6 +490,7 @@ void makehead(){
 	fscanf(loadavg_fp,"%lf %lf %lf", &l1, &l2, &l3);
 	fclose(loadavg_fp);
 
+	//stat값 불러오기
 	FILE * stat_fp;
 
 	if((stat_fp = fopen("/proc/stat", "r"))==NULL){
@@ -490,8 +506,7 @@ void makehead(){
 
 	for(int i=0; i<8; i++){
 		fscanf(stat_fp, "%d", &ccpu[i]);
-		//printf("%d ", ccpu[i]);
-		ccpu[i] = ccpu[i]/4;
+		ccpu[i] = ccpu[i];
 		sum += ccpu[i];
 	}
 	ccpu[8]=sum;
@@ -503,20 +518,20 @@ void makehead(){
 	double wa=(double)(ccpu[4]-bcpu[4])/(double)(ccpu[8]-bcpu[8])*100;
 	double hi=(double)(ccpu[5]-bcpu[5])/(double)(ccpu[8]-bcpu[8])*100;
 	double si=(double)(ccpu[6]-bcpu[6])/(double)(ccpu[8]-bcpu[8])*100;
-	double st=(double)(ccpu[7]-bcpu[7])/(double)(ccpu[8]-bcpu[8])*100;	
+	double st=(double)(ccpu[7]-bcpu[7])/(double)(ccpu[8]-bcpu[8])*100;	//%CPU 계산
 	
 	memcpy(bcpu, ccpu, sizeof(bcpu));
 	fclose(stat_fp);
 
 	double memTotal = (double)getMemTotal()/1024;
-	double memFree = (double)getMemFree()/1024;		//%CPU 계산
+	double memFree = (double)getMemFree()/1024;		//Mem 계산
 
 	double memUsed = memTotal-memFree-((double)getBuffer()/1024)-((double)getCache()/1024)-((double)getSR()/1024);
 	double membc = ((double)getBuffer()/1024)+((double)getCache()/1024)+((double)getSR()/1024);
 
 	double swapTotal = (double)getSwapTotal()/1024;
 	double swapFree = (double)getSwapFree()/1024;
-	double swapUsed = swapTotal-swapFree;		//%CPU 계산
+	double swapUsed = swapTotal-swapFree;		//Swap 계산
 
 	double MemAvail = (double)getMemAvail()/1024;
 
@@ -549,22 +564,17 @@ void ttop_print(){
 	}
 
 	makehead();
-	//위에 내용
+	//헤더 내용 복사
 	for(int i=0; i<5; i++){
 		strncpy(print[i], head[i], w_col);
 	}
 
 	memset(print[5], ' ' , w_col);
-	//첫번째 고정 메뉴얼
+	//프로세스 내역 제목
 	snprintf(print[6], w_col,"%5s %-8s %3s %3s %7s %6s %6s %c %4s %4s   %7s %s",
 			"PID", "USER", "PR", "NI", "VIRT", "RES", "SHR", 'S', "%CPU", "%MEM", "TIME+", "COMMAND");
 	
 	int fnum=7;
-	for(int i=0; i<proc_count;i++){
-		if(strncmp(proc_struct[i].USER, "yeseul", 6)==0){
-			
-		}
-	}
 	for(int i=fnum; i<w_row-1+start_line; i++){
 		snprintf(print[i], w_col, "%5d %-8s %3s %3d %7lld %6lld %6lld %c %4.1lf %4.1lf   %7s %s",
 				proc_struct[i-fnum+start_line].PID, proc_struct[i-fnum+start_line].USER, proc_struct[i-fnum+start_line].PR, proc_struct[i-fnum+start_line].NI,
@@ -592,7 +602,7 @@ void save_data(){
 	proc_count=count;
 
 
-	//구조체 배열 초기화
+	//prco_struct 구조체 배열 초기화
 	memset(proc_struct, 0,sizeof(proc_struct));
 
 	//namelist 안에 저장되어있는 문자열로 저장된 디렉토리 이름을 정수형으로 변환해서 구조체 배열에 저장
@@ -712,7 +722,6 @@ void save_data(){
 		proc_struct[i].MEM=(double)rss/memTotal*100;
 
 		//TIME 구하기
-		//int hertz = (int)sysconf(_SC_CLK_TCK);
 		long long int ticTime = atoll(stoken[13]) + (atoll(stoken[14])); 
 		long long int minTime= ticTime/10000;
 		long long int secTime= ticTime/100;
@@ -765,7 +774,7 @@ int main(void){
 				ttop_print();
 			}
 			else continue;
-			//위 화살표 입력	시
+			//위 화살표 입력시
 		}
 		else if(ret==3){
 			if(start_line<proc_count) {
